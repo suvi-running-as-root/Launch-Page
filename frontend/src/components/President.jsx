@@ -4,13 +4,17 @@ export default function President() {
   return (
     <section className="president container-wide">
       <div className="president-layout">
-        {/* TOP: Centered circular photo */}
-        <div className="president-photo">
+        <div className="president-left">
+            {/* TOP: Centered rectangular photo */}
+            <div className="president-photo-wrap">
+                <div className="president-photo">
           <img
             src={presidentImg}
             alt="Geetha Padaki, President of Amar Seva Sangam USA"
           />
         </div>
+            </div>
+        
 
         {/* BOTTOM: Text paragraphs */}
         <div className="president-content">
@@ -63,7 +67,37 @@ export default function President() {
             Amar Seva Sangam USA
           </p>
         </div>
+        </div>
+        
+        <div className="president-right">
+            <div className="president-commitment">
+  <h3>Leadership Commitment</h3>
+
+  <p className="commitment-quote">
+    “Our leadership is committed to building an organization rooted in
+    dignity, transparency, and long-term impact for persons with
+    disabilities.”
+  </p>
+
+  <ul className="commitment-list">
+    <li>Ethical and responsible governance</li>
+    <li>Transparent use of donor funds</li>
+    <li>Strong global partnerships</li>
+    <li>Focus on sustainable, measurable outcomes</li>
+  </ul>
+
+  {/* NEW — visual anchor */}
+    <div className="commitment-footer">
+      <span>501(c)(3) Registered Non-Profit</span>
+    </div>
+</div>
       </div>
+
+      
+        </div>
+
+        
+
     </section>
   );
 }
