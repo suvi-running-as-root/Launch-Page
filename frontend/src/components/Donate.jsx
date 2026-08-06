@@ -1,87 +1,22 @@
-import {
-  GraduationCap,
-  Stethoscope,
-  Accessibility,
-  Users,
-} from 'lucide-react';
+import { createElement } from 'react';
+import { Accessibility, GraduationCap, Stethoscope, Users } from 'lucide-react';
+
+const programs = [
+  { title: 'Therapies & Healthcare', text: 'Access to essential therapies, rehabilitation services, and ongoing medical support.', icon: Stethoscope, theme: 'health', href: '/therapies-healthcare' },
+  { title: 'Inclusive Education', text: 'Quality education programs designed to meet diverse learning needs and abilities.', icon: GraduationCap, theme: 'education', href: '/inclusive-education' },
+  { title: 'Assistive Technology', text: 'Assistive devices that promote independence, movement, and everyday accessibility.', icon: Accessibility, theme: 'skills', href: '/assistive-technology' },
+  { title: 'Vocational Training', text: 'Inclusive initiatives that build confidence, participation, and long-term empowerment.', icon: Users, theme: 'community', href: '/vocational-training' },
+];
 
 export default function Donate() {
-  // Single Zeffy link (configure in your .env file)
   const zeffyLink = import.meta.env.VITE_ZEFFY_DONATE_URL;
-
-  const handleDonate = () => {
-    if (!zeffyLink) {
-      alert('Zeffy donation link not configured');
-      return;
-    }
-
-    window.open(zeffyLink, '_blank', 'noopener,noreferrer');
-  };
-
-  return (
-    <section id="donate" className="donate container-wide">
-      <h2 style={{ textAlign: 'center' }}>Support Our Mission</h2>
-
-      {/* Donation impact cards */}
-      <div className="donate-grid">
-        <div className="donate-card">
-          <div className="card-media health">
-            <Stethoscope size={28} />
-          </div>
-          <h3>Therapies &amp; Healthcare</h3>
-          <p>
-            Access to essential therapies, rehabilitation services, and ongoing
-            medical support.
-          </p>
-        </div>
-
-        <div className="donate-card">
-          <div className="card-media education">
-            <GraduationCap size={28} />
-          </div>
-          <h3>Inclusive Education</h3>
-          <p>
-            Quality education programs designed to meet diverse learning needs
-            and abilities.
-          </p>
-        </div>
-
-        <div className="donate-card">
-          <div className="card-media skills">
-            <Accessibility size={28} />
-          </div>
-          <h3>Mobility Aids</h3>
-          <p>
-            Assistive devices that promote independence, movement, and everyday
-            accessibility.
-          </p>
-        </div>
-
-        <div className="donate-card">
-          <div className="card-media community">
-            <Users size={28} />
-          </div>
-          <h3>Community Programs</h3>
-          <p>
-            Inclusive initiatives that build confidence, participation, and
-            long-term empowerment.
-          </p>
-        </div>
-      </div>
-
-      {/* Single Donate CTA */}
-      <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-        <button
-          className="btn primary donate-cta"
-          onClick={handleDonate}
-        >
-          Donate Now
-        </button>
-
-        <small style={{ display: 'block', marginTop: 10, opacity: 0.8 }}>
-          Secure checkout powered by Zeffy
-        </small>
-      </div>
-    </section>
-  );
+  const handleDonate = () => zeffyLink ? window.open(zeffyLink, '_blank', 'noopener,noreferrer') : alert('Online donations will be available shortly.');
+  return <section className="donate container-wide">
+    <h2 className="centered-title">Support Our Mission</h2>
+    <p className="section-intro">Learn how your support enables independence, inclusion, and opportunity.</p>
+    <div className="donate-grid">{programs.map(({ title, text, icon: Icon, theme, href }) => <a className="donate-card program-card" href={href} key={title}>
+      <div className={`card-media ${theme}`}>{createElement(Icon, { size: 28 })}</div><h3>{title}</h3><p>{text}</p><span className="card-link">Learn more <span aria-hidden="true">→</span></span>
+    </a>)}</div>
+    <div className="donate-action"><button className="btn primary donate-cta active" onClick={handleDonate}>Donate Now</button><small>Secure checkout powered by Zeffy</small></div>
+  </section>;
 }

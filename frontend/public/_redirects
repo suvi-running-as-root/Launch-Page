@@ -1,0 +1,2 @@
+# SPA fallback: direct visits to /admin (and every other client route) load React.
+/*    /index.html   200

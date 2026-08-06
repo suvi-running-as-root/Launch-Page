@@ -4,6 +4,12 @@ import slide1 from '../assets/slide1.png';
 import slide2 from '../assets/slide2.png';
 import slide3 from '../assets/slide3.png';
 
+const SLIDES = [
+  { img: slide1, text: 'Empowering children and adults with disabilities since 1981' },
+  { img: slide2, text: 'Community-driven care, education, and rehabilitation' },
+  { img: slide3, text: 'Your support helps create inclusive futures' },
+];
+
 export default function Signup() {
   const [form, setForm] = useState({
     name: '',
@@ -16,36 +22,21 @@ export default function Signup() {
 
   const apiBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000';
 
-  const slides = [
-    {
-      img: slide1,
-      text: 'Empowering children and adults with disabilities since 1981',
-    },
-    {
-      img: slide2,
-      text: 'Community-driven care, education, and rehabilitation',
-    },
-    {
-      img: slide3,
-      text: 'Your support helps create inclusive futures',
-    },
-  ];
-
   const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveSlide((i) => (i + 1) % slides.length);
+      setActiveSlide((i) => (i + 1) % SLIDES.length);
     }, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
   const nextSlide = () =>
-    setActiveSlide((i) => (i + 1) % slides.length);
+    setActiveSlide((i) => (i + 1) % SLIDES.length);
 
   const prevSlide = () =>
-    setActiveSlide((i) => (i - 1 + slides.length) % slides.length);
+    setActiveSlide((i) => (i - 1 + SLIDES.length) % SLIDES.length);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -99,13 +90,13 @@ export default function Signup() {
         <div className="signup-left">
           <div className="signup-carousel">
             <img
-              src={slides[activeSlide].img}
+              src={SLIDES[activeSlide].img}
               alt=""
               className="carousel-image"
             />
 
             <p className="carousel-text">
-              {slides[activeSlide].text}
+              {SLIDES[activeSlide].text}
             </p>
 
             <button

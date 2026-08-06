@@ -1,40 +1,18 @@
 import logo from '../assets/logo.png';
 
 export default function About() {
-  return (
-    <section className="about container-wide">
-      <div className="about-layout">
-        <div>
-          <h2>About Us</h2>
-
-          <p>
-            The USA chapter extends the impact of Amar Seva Sangam India, a
-            globally recognized organization founded in 1981. Our goal is to
-            gather support, volunteers, and resources to empower persons with
-            disabilities and strengthen programs in India.
-          </p>
-
-          <h3>Our Mission</h3>
-          <p>
-            To empower persons with disabilities by advancing inclusive,
-            community-driven support systems, providing a full range of
-            education and rehabilitation services, and mobilising resources
-            globally.
-          </p>
-        </div>
-
-        {/* ✅ About section image */}
-        <img
-          src={logo}
-          alt="Inclusive education and rehabilitation programs supported by caregivers and volunteers"
-          className="about-media"
-          style={{
-            width: '100%',
-            borderRadius: '16px',
-            objectFit: 'cover'
-          }}
-        />
+  return <section id="about" className="about container-wide">
+    <div className="about-layout about-layout-expanded">
+      <div className="about-copy">
+        <h2>About Us</h2>
+        <p>Amar Seva Sangam USA is the American chapter of a global movement to empower persons with disabilities. We connect donors and volunteers in the United States to life-changing rehabilitation, education, and community programs in India.</p>
+        <h3>Our Mission</h3>
+        <p>To empower persons with disabilities by advancing inclusive, community-driven support systems, providing a full range of education and rehabilitation services, and mobilising resources globally.</p>
+        <a className="btn hero-secondary-cta" href="/about-us">Learn more about us</a>
       </div>
-    </section>
-  );
+      <div className="about-logo-panel">
+        <img src={logo} alt="Amar Seva Sangam USA" className="about-logo" />
+      </div>
+    </div>
+  </section>;
 }

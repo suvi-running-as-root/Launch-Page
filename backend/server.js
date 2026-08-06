@@ -13,15 +13,30 @@ const nodemailer = require('nodemailer'); // 👈 added
 const app = express();
 const PORT = process.env.PORT || 4000;
 const DB_PATH = path.join(__dirname, 'subscribers.json');
+const PAYMENTS_DB_PATH = path.join(__dirname, 'concert-payments.json');
+const FRONTEND_DIST_PATH = path.join(__dirname, '..', 'frontend', 'dist');
 
 // Admin credentials (change via env vars)
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASS = process.env.ADMIN_PASS || 'changeme';
+const ADMIN_USER = process.env.ADMIN_USER || 'admin?maybe';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'QwErTyUiOp';
+const ZEFFY_WEBHOOK_SECRET = process.env.ZEFFY_WEBHOOK_SECRET || '';
 
 
 
-// middlewares
-app.use(cors());
+// middlewares. Set CORS_ORIGIN to the public website address in production.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({
+  origin(origin, callback) {
+    // No Origin is expected for server-to-server webhooks and command-line checks.
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin is not allowed by CORS policy.'));
+  },
+}));
 app.use(bodyParser.json({ limit: '200kb' })); // parse JSON bodies
 
 // Ensure subscribers.json exists with initial structure
@@ -32,6 +47,13 @@ function ensureDb() {
   }
 }
 ensureDb();
+
+function ensurePaymentsDb() {
+  if (!fs.existsSync(PAYMENTS_DB_PATH)) {
+    fs.writeFileSync(PAYMENTS_DB_PATH, JSON.stringify({ payments: [] }, null, 2), 'utf8');
+  }
+}
+ensurePaymentsDb();
 
 // helper: read DB
 function readDb() {
@@ -49,6 +71,23 @@ function writeDb(dbObj) {
   const tmpPath = DB_PATH + '.tmp';
   fs.writeFileSync(tmpPath, JSON.stringify(dbObj, null, 2), 'utf8');
   fs.renameSync(tmpPath, DB_PATH);
+}
+
+function readPaymentsDb() {
+  try {
+    const raw = fs.readFileSync(PAYMENTS_DB_PATH, 'utf8');
+    const db = JSON.parse(raw);
+    return Array.isArray(db.payments) ? db : { payments: [] };
+  } catch (err) {
+    console.error('Failed to read payments DB:', err);
+    return { payments: [] };
+  }
+}
+
+function writePaymentsDb(dbObj) {
+  const tmpPath = PAYMENTS_DB_PATH + '.tmp';
+  fs.writeFileSync(tmpPath, JSON.stringify(dbObj, null, 2), 'utf8');
+  fs.renameSync(tmpPath, PAYMENTS_DB_PATH);
 }
 
 // Basic auth checker for admin routes
@@ -174,8 +213,8 @@ app.post('/api/contact', async (req, res) => {
     const info = await mailTransporter.sendMail({
       from:
         process.env.CONTACT_FROM_EMAIL ||
-        `"Website" <no-reply@example.org>`,
-      to: process.env.CONTACT_TO_EMAIL || 'you@example.org',
+        `"Amar Seva Sangam USA" <contact@amarsevausa.org>`,
+      to: process.env.CONTACT_TO_EMAIL || 'contact@amarsevausa.org',
       replyTo: email,
       subject: safeSubject,
       text: `
@@ -239,14 +278,139 @@ app.get('/api/subscribers.csv', (req, res) => {
   res.send(csv);
 });
 
+/* ----------------------------------------
+   Concert payments
+   ---------------------------------------- */
+
+function normalisePayment(input = {}) {
+  const amount = Number(input.amount ?? input.total ?? input.amountPaid ?? 0);
+  const currency = String(input.currency || 'USD').toUpperCase();
+  const status = String(input.status || input.paymentStatus || 'paid').toLowerCase();
+  const externalId = String(input.externalId || input.id || input.transactionId || '').trim();
+
+  return {
+    id: externalId || `manual-${Date.now()}`,
+    donorName: String(input.donorName || input.name || input.customerName || '').trim(),
+    donorEmail: String(input.donorEmail || input.email || input.customerEmail || '').trim().toLowerCase(),
+    amount: Number.isFinite(amount) ? Math.round(amount * 100) / 100 : 0,
+    currency,
+    status,
+    paidAt: input.paidAt || input.createdAt || new Date().toISOString(),
+    source: String(input.source || 'zeffy'),
+    receivedAt: new Date().toISOString(),
+  };
+}
+
+function savePayment(input) {
+  const payment = normalisePayment(input);
+  if (!payment.id || payment.amount <= 0 || payment.status !== 'paid') {
+    return { error: 'A paid transaction with a positive amount is required.' };
+  }
+  const db = readPaymentsDb();
+  const existingIndex = db.payments.findIndex((p) => p.id === payment.id);
+  if (existingIndex >= 0) {
+    db.payments[existingIndex] = { ...db.payments[existingIndex], ...payment };
+  } else {
+    db.payments.unshift(payment);
+  }
+  writePaymentsDb(db);
+  return { payment, updated: existingIndex >= 0 };
+}
+
+// Configure this as the notification URL in the payment integration that Zeffy
+// exposes for your account. It deliberately accepts only an authenticated webhook;
+// a browser redirect is never treated as proof of payment.
+app.post('/api/zeffy/webhook', (req, res) => {
+  if (!ZEFFY_WEBHOOK_SECRET) {
+    return res.status(503).json({ error: 'Zeffy webhook is not configured.' });
+  }
+  const suppliedSecret = req.get('x-zeffy-webhook-secret') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (suppliedSecret !== ZEFFY_WEBHOOK_SECRET) {
+    return res.status(401).json({ error: 'Invalid webhook secret.' });
+  }
+
+  try {
+    const result = savePayment({ ...req.body, source: 'zeffy' });
+    if (result.error) return res.status(400).json(result);
+    return res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    console.error('Failed to store Zeffy payment:', err);
+    return res.status(500).json({ error: 'Could not store payment.' });
+  }
+});
+
+app.get('/api/admin/concert-payments', (req, res) => {
+  if (!checkBasicAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
+  const payments = readPaymentsDb().payments;
+  const paid = payments.filter((payment) => payment.status === 'paid');
+  const totalsByCurrency = paid.reduce((totals, payment) => {
+    totals[payment.currency] = (totals[payment.currency] || 0) + payment.amount;
+    return totals;
+  }, {});
+  const dailyRevenue = paid.reduce((days, payment) => {
+    const day = new Date(payment.paidAt).toISOString().slice(0, 10);
+    days[day] = (days[day] || 0) + payment.amount;
+    return days;
+  }, {});
+  res.json({
+    payments,
+    summary: {
+      paymentCount: paid.length,
+      totalsByCurrency,
+      averagePayment: paid.length ? paid.reduce((sum, payment) => sum + payment.amount, 0) / paid.length : 0,
+      dailyRevenue: Object.entries(dailyRevenue).map(([date, amount]) => ({ date, amount })).sort((a, b) => a.date.localeCompare(b.date)),
+    },
+  });
+});
+
+// Use only for a payment confirmed in Zeffy when the account cannot send webhooks.
+app.post('/api/admin/concert-payments', (req, res) => {
+  if (!checkBasicAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const result = savePayment({ ...req.body, source: req.body?.source || 'zeffy-confirmed-manual' });
+    if (result.error) return res.status(400).json(result);
+    return res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    console.error('Failed to store manual payment:', err);
+    return res.status(500).json({ error: 'Could not store payment.' });
+  }
+});
+
+app.get('/api/admin/concert-payments.csv', (req, res) => {
+  if (!checkBasicAuth(req)) return res.status(401).send('Unauthorized');
+  const header = 'transactionId,donorName,donorEmail,amount,currency,status,paidAt,source\n';
+  const safe = (value) => `"${String(value || '').replace(/"/g, '""')}"`;
+  const rows = readPaymentsDb().payments.map((payment) => [payment.id, payment.donorName, payment.donorEmail, payment.amount, payment.currency, payment.status, payment.paidAt, payment.source].map(safe).join(',')).join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="concert-payments.csv"');
+  res.send(header + rows);
+});
+
+// In production, the backend can serve the built React app as a single service.
+// Build the frontend first (`npm run build` inside frontend) before starting Node.
+if (fs.existsSync(FRONTEND_DIST_PATH)) {
+  app.use(express.static(FRONTEND_DIST_PATH));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    return res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
+  });
+}
+
 // Fallback 404 for other routes
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);
-  console.log(
-    `Admin user: ${ADMIN_USER} (change with ADMIN_USER / ADMIN_PASS env vars)`
-  );
+  console.log('Set ADMIN_USER, ADMIN_PASS, ZEFFY_WEBHOOK_SECRET, and CORS_ORIGIN for production.');
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Stop the existing service or start with a different port, for example: PORT=4001 npm run dev`);
+  } else {
+    console.error('Unable to start the server:', error.message);
+  }
+  process.exit(1);
 });

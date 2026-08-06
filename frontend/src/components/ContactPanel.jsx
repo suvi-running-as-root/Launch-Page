@@ -41,7 +41,7 @@ export default function ContactPanel({ open, onClose }) {
       setForm({ email: '', name: '', subject: '', message: '' });
       // optionally auto-close after success
       // onClose();
-    } catch (err) {
+    } catch {
       setStatus('error');
     } finally {
       setLoading(false);
